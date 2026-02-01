@@ -1,12 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy, doc, deleteDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const pass = prompt("Nhập mật khẩu admin:");
-if (pass !== "123456") {
-  document.body.innerHTML = "Access denied";
-  throw new Error("Unauthorized");
-}
-
 // --- CẤU HÌNH FIREBASE: Kết nối ứng dụng với Database ---
 const firebaseConfig = {
     apiKey: "AIzaSyAKYazmv5LhCsRUlGRoYm5RSHKuV5nT24A",
