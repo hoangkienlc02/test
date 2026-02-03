@@ -154,6 +154,28 @@ window.filterByDynamicTag = (tag, btn) => {
     goToPage(1);
 };
 
+// --- HÀM LỌC THEO LOẠI (VIDEO/ẢNH) ---
+window.filterByType = (type, btn) => {
+    // 1. Cập nhật giao diện nút đang chọn (Active)
+    document.querySelectorAll('.filter-item').forEach(el => el.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    // 2. Lọc dữ liệu dựa trên trường 'type'
+    // Lưu ý: type ở đây là 'video' hoặc 'image'
+    filteredImages = allImages.filter(item => {
+        if (type === 'video') {
+            return item.type === 'video' || item.url.includes('.mp4');
+        } else {
+            return item.type === 'image' || (!item.type && !item.url.includes('.mp4'));
+        }
+    });
+
+    // 3. Hiển thị lại Gallery từ trang 1
+    currentPage = 1;
+    renderFilterTags(); // Cập nhật lại các tag liên quan nếu cần
+    goToPage(1);
+};
+
 window.filterImages = () => {
     const term = document.getElementById('searchInput').value.toLowerCase();
     filteredImages = allImages.filter(i => 
