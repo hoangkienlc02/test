@@ -59,27 +59,51 @@ function renderGallery(data) {
     
     data.forEach(item => {
         const isMob = item.device?.toLowerCase().includes('mobile');
+        // Kiểm tra loại file dựa trên trường 'type' hoặc đuôi link
+        const isVideo = item.type === 'video' || item.url.includes('.mp4') || item.url.includes('.mov');
+        
         const div = document.createElement('div');
         div.className = `card ${isMob ? 'mobile-view' : ''}`;
         
+        // Hiển thị Video hoặc Ảnh
+        let mediaHtml = "";
+        if (isVideo) {
+            mediaHtml = `
+                <video 
+                    src="${item.url}" 
+                    muted loop playsinline 
+                    onmouseover="this.play()" 
+                    onmouseout="this.pause()" 
+                    style="width:100%; height:100%; object-fit:cover; border-radius:12px; display:block;">
+                </video>`;
+        } else {
+            mediaHtml = `<img src="${getOptimizedUrl(item.url)}" loading="lazy">`;
+        }
+        
         div.innerHTML = `
-            <img src="${getOptimizedUrl(item.url)}" loading="lazy">
+            ${mediaHtml}
             <div class="card-overlay">
                 <div class="card-info">
-                    <span class="tag-label">${item.device}</span>
+                    <span class="tag-label">${isVideo ? 'VIDEO' : item.device}</span>
                     <span class="tag-label">#${item.theme}</span>
                     ${item.subName ? `<span class="tag-label">${item.subName}</span>` : ''}
                 </div>
                 <div class="actions">
-                    <button title="Tải xuống" onclick="event.stopPropagation(); downloadImage('${item.url}', '${item.subName || 'anime'}.jpg')">
+                    <button title="Tải xuống" onclick="event.stopPropagation(); downloadImage('${item.url}', '${item.subName || 'anime'}${isVideo ? '.mp4' : '.jpg'}')">
                         <span class="material-icons-outlined">file_download</span>
                     </button>
                 </div>
             </div>`;
             
         div.onclick = () => { 
-            document.getElementById('lightbox-img').src = item.url; 
-            document.getElementById('lightbox').style.display = 'flex'; 
+            if (isVideo) {
+                // Với video, click vào sẽ mở tab mới để xem full hoặc tải
+                window.open(item.url, '_blank');
+            } else {
+                // Với ảnh, mở lightbox như bình thường
+                document.getElementById('lightbox-img').src = item.url; 
+                document.getElementById('lightbox').style.display = 'flex'; 
+            }
         };
         gallery.appendChild(div);
     });

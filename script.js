@@ -192,26 +192,29 @@ window.handleUpload = async () => {
     const files = fileInput.files;
     const deviceInput = document.getElementById('deviceInput');
     const themeInput = document.getElementById('themeInput');
-    const nameInput = document.getElementById('nameInput'); // Đây là "Tên cụ thể"
+    const nameInput = document.getElementById('nameInput');
 
     const device = deviceInput.value.trim();
     const theme = themeInput.value.trim();
     const subName = nameInput.value.trim();
 
-    // Kiểm tra đầu vào cơ bản
+    // Kiểm tra đầu vào
     if (files.length === 0 || !device) {
-        return showToast("Vui lòng chọn ảnh và nhập thiết bị!", "error");
+        return showToast("Vui lòng chọn tệp và nhập thiết bị!", "error");
     }
 
-    const MAX_SIZE = 10 * 1024 * 1024; // Giới hạn 10MB
+    const MAX_SIZE = 100 * 1024 * 1024; // Nâng lên 100MB để hỗ trợ video
     const validFiles = [];
     const errors = [];
 
     Array.from(files).forEach(file => {
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+
         if (file.size > MAX_SIZE) {
-            errors.push(`"${file.name}" quá lớn (>10MB)`);
-        } else if (!file.type.startsWith('image/')) {
-            errors.push(`"${file.name}" không phải là ảnh`);
+            errors.push(`"${file.name}" quá lớn (>100MB)`);
+        } else if (!isImage && !isVideo) {
+            errors.push(`"${file.name}" định dạng không hỗ trợ`);
         } else {
             validFiles.push(file);
         }
@@ -223,14 +226,20 @@ window.handleUpload = async () => {
 
     if (validFiles.length === 0) return;
 
-    showToast(`Đang tải lên ${validFiles.length} ảnh hợp lệ...`);
+    showToast(`Đang tải lên ${validFiles.length} tệp...`);
 
     const promises = validFiles.map(async (file) => {
+        // XÁC ĐỊNH LOẠI FILE ĐỂ GỬI LÊN CLOUDINARY
+        const isVideo = file.type.startsWith('video/');
+        const resourceType = isVideo ? 'video' : 'image';
+
         const fd = new FormData();
         fd.append('file', file);
         fd.append('upload_preset', UPLOAD_PRESET);
+        
         try {
-            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { 
+            // URL API thay đổi tùy theo resourceType (image/upload hoặc video/upload)
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`, { 
                 method: 'POST', 
                 body: fd 
             });
@@ -239,43 +248,39 @@ window.handleUpload = async () => {
 
             const data = await res.json();
             
+            // Lưu vào Firestore kèm theo trường 'type'
             return addDoc(collection(db, "photos"), { 
                 url: data.secure_url, 
                 publicId: data.public_id,
+                type: resourceType, // Lưu 'image' hoặc 'video'
                 device, 
                 theme, 
                 subName, 
                 createdAt: new Date() 
             });
         } catch (e) {
-            showToast(`Lỗi hệ thống khi tải file: ${file.name}`, "error");
+            console.error(e);
+            showToast(`Lỗi khi tải: ${file.name}`, "error");
             return null;
         }
     });
 
     await Promise.all(promises);
-    showToast("Upload ảnh thành công!");
+    showToast("Đã đăng tải thành công!");
 
-    // --- ĐOẠN MÃ THÊM VÀO ĐỂ RESET THÔNG TIN ---
-    // 1. Xóa danh sách file trong input
+    // --- RESET FORM ---
     fileInput.value = ""; 
-    
-    // 2. Xóa trắng các ô nhập liệu văn bản
     deviceInput.value = "";
     themeInput.value = "";
     nameInput.value = "";
 
-    // 3. Reset giao diện Preview ảnh
     const preview = document.getElementById('preview');
     const dropText = document.getElementById('dropText');
-    if (preview) {
-        preview.src = "";
-        preview.style.display = 'none';
-    }
-    if (dropText) {
-        dropText.style.display = 'block';
-    }
-    // --------------------------------------------
+    const videoPreview = document.getElementById('videoPreview'); // Nếu bạn có thẻ video preview
+
+    if (preview) { preview.src = ""; preview.style.display = 'none'; }
+    if (videoPreview) { videoPreview.src = ""; videoPreview.style.display = 'none'; }
+    if (dropText) { dropText.style.display = 'block'; }
 
     loadImages();
 };
@@ -287,14 +292,32 @@ function renderGallery(data) {
     
     data.forEach(item => {
         const isMob = item.device?.toLowerCase().includes('mobile');
+        // Kiểm tra xem đây là video hay ảnh
+        const isVideo = item.type === 'video';
+        
         const div = document.createElement('div');
         div.className = `card ${isMob ? 'mobile-view' : ''}`;
         
+        // Tạo tag hiển thị tương ứng (Video hoặc Ảnh)
+        let mediaHtml = "";
+        if (isVideo) {
+            mediaHtml = `
+                <video 
+                    src="${item.url}" 
+                    muted loop playsinline 
+                    onmouseover="this.play()" 
+                    onmouseout="this.pause()" 
+                    style="width:100%; height:100%; object-fit:cover; border-radius:12px;">
+                </video>`;
+        } else {
+            mediaHtml = `<img src="${getOptimizedUrl(item.url)}" loading="lazy" onload="this.classList.add('loaded')">`;
+        }
+        
         div.innerHTML = `
-            <img src="${getOptimizedUrl(item.url)}" loading="lazy" onload="this.classList.add('loaded')">
+            ${mediaHtml}
             <div class="card-overlay">
                 <div class="card-info">
-                    <span class="tag-label">${item.device}</span>
+                    <span class="tag-label">${isVideo ? 'VIDEO' : item.device}</span>
                     <span class="tag-label">#${item.theme}</span>
                     ${item.subName ? `<span class="tag-label">${item.subName}</span>` : ''}
                 </div>
@@ -302,7 +325,7 @@ function renderGallery(data) {
                     <button onclick="event.stopPropagation(); editPhoto('${item.id}','${item.device}','${item.theme}','${item.subName||''}')">
                         <span class="material-icons-outlined">edit_note</span>
                     </button>
-                    <button onclick="event.stopPropagation(); downloadImage('${item.url}', '${item.subName || item.theme}.jpg')">
+                    <button onclick="event.stopPropagation(); downloadImage('${item.url}', '${item.subName || item.theme}${isVideo ? '.mp4' : '.jpg'}')">
                         <span class="material-icons-outlined">file_download</span>
                     </button>
                     <button class="btn-del" onclick="event.stopPropagation(); deletePhoto('${item.id}', '${item.publicId}')">
@@ -312,9 +335,14 @@ function renderGallery(data) {
             </div>`;
             
         div.onclick = () => { 
-            // Thay đổi từ item.url (nếu đang dùng tối ưu) thành URL gốc đầy đủ
-            document.getElementById('lightbox-img').src = item.url; 
-            document.getElementById('lightbox').style.display = 'flex'; 
+            if (isVideo) {
+                // Nếu là video, click vào sẽ mở link gốc trong tab mới
+                window.open(item.url, '_blank');
+            } else {
+                // Nếu là ảnh, mở Lightbox như cũ
+                document.getElementById('lightbox-img').src = item.url; 
+                document.getElementById('lightbox').style.display = 'flex'; 
+            }
         };
         gallery.appendChild(div);
     });
